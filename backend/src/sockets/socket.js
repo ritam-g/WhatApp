@@ -20,15 +20,35 @@ export function initSocket(server) {
 
     // --- ADVANCED: JOIN & PRIVATE ---
     socket.on("join", (userId) => {
-      users[userId] = socket.id;
-      console.log(`👤 User [${userId}] is now online`);
+      // Trim spaces and remove accidental literal quotes (e.g. "user_123" -> user_123)
+      const cleanId = String(userId).trim().replace(/^["'](.+)["']$/, "$1");
+      users[cleanId] = socket.id;
+      console.log(`👤 User [${cleanId}] is now online`);
     });
 
     socket.on("send-message", (data) => {
-      const { receiverId } = data;
-      const receiverSocketId = users[receiverId];
+      // Robust Parsing: If data is a string, parse it into JSON
+      let payload = data;
+      if (typeof data === "string") {
+        try {
+          payload = JSON.parse(data);
+        } catch (e) {
+          console.error("❌ Failed to parse message data:", data);
+        }
+      }
+
+      const { receiverId } = payload;
+      // Also clean quotes from receiverId just in case
+      const cleanReceiverId = receiverId 
+        ? String(receiverId).trim().replace(/^["'](.+)["']$/, "$1") 
+        : "undefined";
+      const receiverSocketId = users[cleanReceiverId];
+
       if (receiverSocketId) {
-        io.to(receiverSocketId).emit("receive-message", data);
+        console.log(`✉️ Sending message to [${cleanReceiverId}]`);
+        io.to(receiverSocketId).emit("receive-message", payload);
+      } else {
+        console.log(`⚠️ User [${cleanReceiverId}] not found or offline`);
       }
     });
 
